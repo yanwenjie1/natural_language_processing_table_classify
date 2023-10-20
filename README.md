@@ -60,3 +60,21 @@ pip install gevent
 4.如果想获得完美的外推性，需设置AbsoluteEncoding为False，但是需要更大量的样本支撑，一般情况下设置为True，外推性也足以应对绝大部分场景
 5.理论上设置表格为10*10，至多20*10即可，考虑到显存问题，若想要获得更好的外推性，请联系管理员解决
 ```
+
+## label_studio平台标签
+
+```html
+标签体系范例
+<View>
+  <Labels name="label" toName="text">
+    <Label value="key" background="#020f00"/>
+    <Label value="value" background="blue"/>
+    <Label value="content" background="red"/>
+    <Label value="title" background="yellow"/>
+  </Labels>
+
+  <View style="border: 1px solid #CCC; border-radius: 10px; padding: 5px">
+    <HyperText name="text" value="$html"/>
+  </View>
+</View>
+```
