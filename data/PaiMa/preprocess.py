@@ -98,6 +98,7 @@ def load_data_table(filename):
             # 从第二个表格出发，填充模板
             entities = [['PAD' for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
             this_labels = []
+            locations = [[args.Col_Count * args.Row_Count - 1 for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
 
             soup = BeautifulSoup(tables[1], 'html.parser')
             table = soup.find('table')
@@ -132,13 +133,17 @@ def load_data_table(filename):
                             this_labels.append((labels_to_ids['其它指标值'], row_index, col_index))
                         this_labels.append((labels_to_ids[i], row_index, col_index))
                     entities[row_index][col_index] = content1
+                    locations[row_index][col_index] = index_father - 1
 
             this_entities = []
+            this_locations = []
             # 定义一维数组
             for row in entities:
                 this_entities.extend(row)
+            for location in locations:
+                this_locations.extend(location)
 
-            results.append((this_labels, this_entities))
+            results.append((this_labels, this_entities, this_locations))
         except Exception as e:
             print(str(e))
             wrong_list.append(content['id'])
@@ -149,12 +154,13 @@ def load_data_table(filename):
 
 def convert_examples_to_features(examples, tokenizer: BertTokenizer):
     features = []
-    for (one_labels, one_texts) in tqdm(examples):  # texts: list of str; entities: list of tuple (from_ids, to_ids, label)
+    for (one_labels, one_texts, one_location) in tqdm(examples):  # texts: list of str; entities: list of tuple (from_ids, to_ids, label)
         text_len = len(one_texts)
         assert text_len == args.Row_Count * args.Col_Count, '单元格数量不对'
         masks = torch.zeros((text_len,), dtype=torch.uint8)
         labels = torch.zeros((len(all_entity_labels), args.Row_Count, args.Col_Count), dtype=torch.uint8)
-        locations = torch.zeros((text_len, 2), dtype=torch.uint8)
+        locations = torch.as_tensor(one_location, dtype=torch.int16) # 8位无符号整数 取值范围为[0, 255]
+        # locations = torch.zeros((text_len, 2), dtype=torch.uint8) # 8位无符号整数 取值范围为[0, 255]
 
         word_ids = tokenizer.batch_encode_plus(one_texts,
                                                max_length=args.max_seq_len,
@@ -205,7 +211,7 @@ if __name__ == '__main__':
     all_entity_labels = write_label('project-145-at-2023-12-05-06-24-750926bd.json')
 
     all_data = load_data_table('project-145-at-2023-12-05-06-24-750926bd.json')
-    all_data.extend(load_data_table('project-152-at-2023-12-12-08-17-98c484a9.json'))
+    # all_data.extend(load_data_table('project-152-at-2023-12-12-08-17-98c484a9.json'))
 
 
     print('总样本量 ', len(all_data))
