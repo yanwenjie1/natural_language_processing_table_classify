@@ -78,3 +78,7 @@ pip install gevent
   </View>
 </View>
 ```
+
+## 更新日志
+ - 2024-01-18：使用了新的标注定位方案，增加了示例PaiMai项目
+ - 2024-01-18：同时更新了models.py train.py server.py 以此支持示例项目 同时放弃了对旧项目的支持 故table_sample_make.cs文件已过时 下次更新
