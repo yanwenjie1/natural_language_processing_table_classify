@@ -38,28 +38,57 @@ class CnnTableClassify(BaseModel):
                                                model_name=args.model_name)
         self.args = args
         if self.args.AbsoluteEncoding:
-            self.base_config.hidden_size += 384
             self.location_embed = nn.Parameter(torch.randn(self.args.Row_Count * self.args.Col_Count, 384))
-        self.conv1 = nn.Conv2d(self.base_config.hidden_size, self.base_config.hidden_size // 2, 5, padding=2)
-        self.conv2 = nn.Conv2d(self.base_config.hidden_size, self.base_config.hidden_size // 2, 3, padding=1)
-        self.dense = nn.Linear(self.base_config.hidden_size, self.args.num_tags)
+            self.conv1 = nn.Conv2d(self.base_config.hidden_size + 384, (self.base_config.hidden_size + 384) // 2, 5,
+                                   padding=2)
+            self.conv2 = nn.Conv2d(self.base_config.hidden_size + 384, (self.base_config.hidden_size + 384) // 2, 3,
+                                   padding=1)
+            self.dense = nn.Linear(self.base_config.hidden_size + 384, self.args.num_tags)
+        else:
+            self.conv1 = nn.Conv2d(self.base_config.hidden_size, self.base_config.hidden_size // 2, 5, padding=2)
+            self.conv2 = nn.Conv2d(self.base_config.hidden_size, self.base_config.hidden_size // 2, 3, padding=1)
+            self.dense = nn.Linear(self.base_config.hidden_size, self.args.num_tags)
 
-    def forward(self, token_ids, attention_masks, token_type_ids, masks, location):
+    def forward(self, token_ids, attention_masks, token_type_ids, masks, location, mode='train'):
         batch_size = token_ids.size(0)
         max_seq_len = token_ids.size(1)
         assert max_seq_len == self.args.Row_Count * self.args.Col_Count
-        output = self.bert_module(input_ids=torch.reshape(token_ids, (batch_size * max_seq_len, token_ids.size(-1))),
-                                  attention_mask=torch.reshape(attention_masks, (batch_size * max_seq_len, attention_masks.size(-1))),
-                                  token_type_ids=torch.reshape(token_type_ids, (batch_size * max_seq_len, token_type_ids.size(-1))))
-        sequence_output = output[1]
-        sequence_output = torch.reshape(sequence_output, (batch_size, self.args.Row_Count, self.args.Col_Count, self.base_config.hidden_size - 384))
 
-        location = torch.reshape(location, (batch_size * max_seq_len, 2))
-        location = location[:, 0] * 10 + location[:, 1]
-        index = location.view(-1).long()
-        batch_location_embed = torch.index_select(self.location_embed, 0, index).view(batch_size, self.args.Row_Count, self.args.Col_Count, -1)
+        # 如果是server 控制其显存占用
+        if mode == 'train':
+            output = self.bert_module(
+                input_ids=torch.reshape(token_ids, (batch_size * max_seq_len, token_ids.size(-1))),
+                attention_mask=torch.reshape(attention_masks, (batch_size * max_seq_len, attention_masks.size(-1))),
+                token_type_ids=torch.reshape(token_type_ids, (batch_size * max_seq_len, token_type_ids.size(-1))))
+            sequence_output = output[1]
+            sequence_output = torch.reshape(sequence_output, (
+                batch_size, self.args.Row_Count, self.args.Col_Count, self.base_config.hidden_size))
+        elif mode == 'server':
+            # 按 self.args.Row_Count 切割 再合并
+            token_ids_s = torch.chunk(token_ids, self.args.Row_Count, dim=1)
+            attention_masks_s = torch.chunk(attention_masks, self.args.Row_Count, dim=1)
+            token_type_ids_s = torch.chunk(token_type_ids, self.args.Row_Count, dim=1)
+            sequence_outputs = [self.bert_module(
+                input_ids=torch.reshape(token_ids_s[i], (batch_size * self.args.Col_Count, token_ids_s[i].size(-1))),
+                attention_mask=torch.reshape(attention_masks_s[i],
+                                             (batch_size * self.args.Col_Count, attention_masks_s[i].size(-1))),
+                token_type_ids=torch.reshape(token_type_ids_s[i],
+                                             (batch_size * self.args.Col_Count, token_type_ids_s[i].size(-1))))[1] for i
+                                in
+                                range(self.args.Row_Count)]
+            sequence_outputs = [torch.reshape(i, (batch_size, self.args.Col_Count, i.size(-1))) for i in
+                                sequence_outputs]
+            sequence_output = torch.stack(sequence_outputs, dim=1)
+        else:
+            assert False, 'mode 入参不对  ' + str(mode)
 
-        sequence_output = torch.cat([sequence_output, batch_location_embed], dim=-1)
+        if self.args.AbsoluteEncoding:
+            # V2版本下 location 是 batchsize * max_seq_len * 1
+            index = location.view(-1).long()
+            batch_location_embed = torch.index_select(self.location_embed, 0, index).view(batch_size,
+                                                                                          self.args.Row_Count,
+                                                                                          self.args.Col_Count, -1)
+            sequence_output = torch.cat([sequence_output, batch_location_embed], dim=-1)
 
         sequence_output = torch.einsum('abcd->adbc', sequence_output)
         logits_1 = self.conv1(sequence_output)
