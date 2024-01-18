@@ -15,6 +15,7 @@ import re
 from flask import Flask, request
 from gevent import pywsgi
 from transformers import BertTokenizer
+from bs4 import BeautifulSoup
 from utils.functions import load_model_and_parallel, get_result
 from utils.models import CnnTableClassify, GPTableClassify
 
@@ -88,14 +89,32 @@ def decode(token_ids, attention_masks, token_type_ids, masks, location):
     return model_pre
 
 
-def get_location(text):
-    # 'pad    0,4'
-    # '标段(包)编号    0,1'
-    results = re.findall(r'(.*?)\s+(\d+),(\d+)$', text)
-    result1 = results[0][0]
-    result2 = int(results[0][1])
-    result3 = int(results[0][2])
-    return (result1, result2, result3)
+def filling_entities(entities, table_str, locations):
+    """
+    填充预输入的文本矩阵
+    :param entities:
+    :param table_str:
+    :return:
+    """
+    soup = BeautifulSoup(table_str, 'html.parser')
+    table = soup.find('table')
+    rows = table.find_all('tr')
+    # entities_all = copy.deepcopy(entities)
+    for row_index, row in enumerate(rows):
+        if row_index >= args.Row_Count:
+            continue
+        cells = row.find_all('td')
+        for col_index, cell in enumerate(cells):
+            if col_index >= args.Col_Count:
+                continue
+            content1 = cell.text.strip()
+            # '车号@1'
+            re_match = re.findall(r'(.*?)@(\d+)$', content1)
+            # assert len(re_match) == 1, '匹配单元格完整内容失败' + '    ' + str(content['id'])
+            if len(re_match) == 1:
+                entities[row_index][col_index] = re_match[0][0]
+                locations[row_index][col_index] = int(re_match[0][1]) - 1
+    return entities
 
 
 class Dict2Class:
@@ -104,7 +123,7 @@ class Dict2Class:
 
 
 torch_env()
-model_name = './checkpoints/ZhaoTouBiao-MultiClassify-chinese-bert-wwm-ext-2023-09-07'
+model_name = './checkpoints/PaiMai-chinese-roberta-small-wwm-cluecorpussmall-2024-01-18'
 args_path = os.path.join(model_name, 'args.json')
 model_path = os.path.join(model_name, 'model_best.pt')
 labels_path = os.path.join(model_name, 'labels.json')
@@ -135,19 +154,31 @@ def prediction():
         # msgs = request.get_json("content")
         msgs = msgs.decode('utf-8')
         # print(msg)
-        msgs = json.loads(msgs)
-        assert type(msgs) == list
-        assert len(msgs) == args.Row_Count * args.Col_Count
-        msgs = [get_location(i) for i in msgs]
-        # 多接受一个location的输入
-        location = [(i[1], i[2]) for i in msgs]
-        # location = [i[0] * 10 + i[1] for i in location]
-        msgs = [i[0] for i in msgs]
+        assert type(msgs) == str
+        # 传入table 传出预测结果
+        entities = [['PAD' for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
+        locations = [[args.Col_Count * args.Row_Count - 1 for _ in range(args.Col_Count)] for _ in
+                     range(args.Row_Count)]
+        # 填充entities
+        entities = filling_entities(entities, msgs, locations)
+
+        this_entities = []
+        this_locations = []
+        # 定义一维数组
+        for row in entities:
+            this_entities.extend(row)
+        for location in locations:
+            this_locations.extend(location)
+
+        location =torch.as_tensor(this_locations, dtype=torch.int16)
         location = torch.as_tensor(location, device=device).unsqueeze(0)
 
-        token_ids, attention_masks, token_type_ids = encode(msgs)
-        masks = torch.tensor([i != 'PAD' and i != 'pad' for i in msgs], dtype=torch.long, device=device).unsqueeze(0)
-        results = decode(token_ids.unsqueeze(0), attention_masks.unsqueeze(0), token_type_ids.unsqueeze(0), masks, location)
+        token_ids, attention_masks, token_type_ids = encode(this_entities)
+        masks = torch.tensor([i != 'PAD' for i in msgs], dtype=torch.long, device=device).unsqueeze(0)
+        results = decode(token_ids.unsqueeze(0), attention_masks.unsqueeze(0), token_type_ids.unsqueeze(0), masks,
+                         location)
+
+        results = [(i[0], i[1], i[2], float(i[3]), entities[i[1]][i[2]], locations[i[1]][i[2]]) for i in results]
 
         res = json.dumps(results, ensure_ascii=False)
         return res

@@ -76,6 +76,24 @@ if __name__ == '__main__':
         args.Row_Count = 20
         args.use_advert_train = True
 
+    if args.data_name == "公墓基金摘要":
+        # set_seed(args.seed)
+        args.max_seq_len = 32
+        args.Row_Count = 20
+        args.Col_Count = 10
+        args.batch_size = 8
+        args.use_advert_train = True
+
+    if args.data_name == "PaiMai":
+        # set_seed(args.seed)
+        args.batch_size = 4
+        args.use_advert_train = False
+        args.train_epochs = 10
+        args.max_seq_len = 48
+        args.Row_Count = 20
+        args.Col_Count = 10
+        args.AbsoluteEncoding = True
+
     # read sample
     with open(os.path.join(args.data_dir, 'labels.json'), 'r', encoding='utf-8') as f:
         label_list = json.load(f)

@@ -25,9 +25,9 @@ class Args:
         # chinese-roberta-wwm-ext
         # chinese-roberta-base-wwm-cluecorpussmall
         # chinese-nezha-base
-        parser.add_argument('--bert_dir', default='../model/chinese-bert-wwm-ext/',
+        parser.add_argument('--bert_dir', default='../model/chinese-roberta-small-wwm-cluecorpussmall/',
                             help='pre trained model dir for uer')
-        parser.add_argument('--data_dir', default='./data/ZhaoTouBiao/',
+        parser.add_argument('--data_dir', default='./data/PaiMai/',
                             help='data dir for uer')
 
         # other args
