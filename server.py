@@ -178,7 +178,7 @@ def prediction():
         results = decode(token_ids.unsqueeze(0), attention_masks.unsqueeze(0), token_type_ids.unsqueeze(0), masks,
                          location)
 
-        results = [(i[0], i[1], i[2], float(i[3]), entities[i[1]][i[2]], locations[i[1]][i[2]]) for i in results]
+        results = [(i[0], i[1], i[2], float(i[3]), entities[i[1]][i[2]], locations[i[1]][i[2]] + 1) for i in results]
 
         res = json.dumps(results, ensure_ascii=False)
         return res
