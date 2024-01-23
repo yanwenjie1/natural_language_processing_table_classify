@@ -100,8 +100,9 @@ def load_data_table(filename):
             # 从第二个表格出发，填充模板
             entities = [['PAD' for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
             this_labels = []
-            locations = [[args.Col_Count * args.Row_Count - 1 for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
-
+            locations = [[-1 for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
+            locations_fun_dict = {-1: args.Col_Count * args.Row_Count - 1}
+            global_location_index = 0
             soup = BeautifulSoup(tables[1], 'html.parser')
             table = soup.find('table')
 
@@ -136,6 +137,11 @@ def load_data_table(filename):
                         this_labels.append((labels_to_ids[i], row_index, col_index))
                     entities[row_index][col_index] = content1
                     locations[row_index][col_index] = index_father - 1
+                    if index_father - 1 in locations_fun_dict:
+                        pass
+                    else:
+                        locations_fun_dict[index_father - 1] = global_location_index
+                        global_location_index += 1
 
 
             this_entities = []
@@ -143,14 +149,10 @@ def load_data_table(filename):
             # 定义一维数组
             for row in entities:
                 this_entities.extend(row)
-
             for location in locations:
                 this_locations.extend(location)
 
-            this_locations_new = list(set(this_locations))
-            this_locations_new.sort()
-            this_locations_new = {j: i for i, j in enumerate(this_locations_new)}
-            this_locations = [this_locations_new[i] for i in this_locations]
+            this_locations = [locations_fun_dict[i] for i in this_locations]
 
             assert max(this_locations) <= args.Row_Count * args.Col_Count, '索引越界' + '    ' + str(content['id']) + filename
 
