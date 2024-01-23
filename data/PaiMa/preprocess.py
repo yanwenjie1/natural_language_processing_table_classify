@@ -8,6 +8,8 @@
 @Other: XX
 """
 import os
+import sys
+sys.path.append('/home/finchina/python/nlp-table-classify-paimai2/')
 import json
 import re
 import torch
@@ -53,11 +55,11 @@ def load_data_table(filename):
         contents = json.load(file)
     contents = sorted(contents, key=lambda x: x['id'])
 
-    no_ids = [379161, 383224, 387671, 387771, 388220, 388262, 388267, 388399, 388425, 388535, 388348, 387793, 387827,
-              387875, 389960, 390042, 390059, 390154, 390258, 388023, 388247, 388340, 388464, 388505, 388519, 388581,
-              387739, 387885, 389967, 390213, 390261, 389166, 389181, 389202, 389368, 389369, 389429, 390131, 390184,
-              390199, 389264, 388249, 389307, 389379, 390233, 389489, 388400, 389590, 388524, 389735, 387569, 388104,
-              387874, 387984]
+    # no_ids = [379161, 383224, 387671, 387771, 388220, 388262, 388267, 388399, 388425, 388535, 388348, 387793, 387827,
+    #           387875, 389960, 390042, 390059, 390154, 390258, 388023, 388247, 388340, 388464, 388505, 388519, 388581,
+    #           387739, 387885, 389967, 390213, 390261, 389166, 389181, 389202, 389368, 389369, 389429, 390131, 390184,
+    #           390199, 389264, 388249, 389307, 389379, 390233, 389489, 388400, 389590, 388524, 389735, 387569, 388104,
+    #           387874, 387984]
 
     wrong_list = []
     for content in contents:
@@ -65,12 +67,12 @@ def load_data_table(filename):
             # 从html中加载表格
             # 语料ID范围是379160-379309、383020-383462
             # ID范围为：387553-390278
-            if content['id'] in no_ids:
-                continue
-            if not ((content['id'] >= 379160 and content['id'] <= 379309) or
-                    (content['id'] >= 383020 and content['id'] <= 383462) or
-                    (content['id'] >= 387553 and content['id'] <= 390278)):
-                continue
+            # if content['id'] in no_ids:
+            #     continue
+            # if not ((content['id'] >= 379160 and content['id'] <= 379309) or
+            #         (content['id'] >= 383020 and content['id'] <= 383462) or
+            #         (content['id'] >= 387553 and content['id'] <= 390278)):
+            #     continue
 
             html = content['data']['html']
             tables = re.findall(r'<table[^<>]*>[\s\S]*?</table>', html)
@@ -135,13 +137,22 @@ def load_data_table(filename):
                     entities[row_index][col_index] = content1
                     locations[row_index][col_index] = index_father - 1
 
+
             this_entities = []
             this_locations = []
             # 定义一维数组
             for row in entities:
                 this_entities.extend(row)
+
             for location in locations:
                 this_locations.extend(location)
+
+            this_locations_new = list(set(this_locations))
+            this_locations_new.sort()
+            this_locations_new = {j: i for i, j in enumerate(this_locations_new)}
+            this_locations = [this_locations_new[i] for i in this_locations]
+
+            assert max(this_locations) <= args.Row_Count * args.Col_Count, '索引越界' + '    ' + str(content['id']) + filename
 
             results.append((this_labels, this_entities, this_locations))
         except Exception as e:
@@ -208,10 +219,11 @@ if __name__ == '__main__':
 
     my_tokenizer = BertTokenizer(os.path.join('../../' + args.bert_dir, 'vocab.txt'))
 
-    all_entity_labels = write_label('project-145-at-2023-12-05-06-24-750926bd.json')
+    all_entity_labels = write_label('project-145-at-2023-12-22-01-45-17e6f7b1.json')
 
-    all_data = load_data_table('project-145-at-2023-12-05-06-24-750926bd.json')
-    # all_data.extend(load_data_table('project-152-at-2023-12-12-08-17-98c484a9.json'))
+    all_data = load_data_table('project-145-at-2023-12-22-01-45-17e6f7b1.json')
+
+    all_data.extend(load_data_table('project-152-at-2024-01-12-08-28-e0a698b3.json'))
 
 
     print('总样本量 ', len(all_data))
