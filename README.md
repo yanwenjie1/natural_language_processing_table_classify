@@ -83,4 +83,4 @@ pip install gevent
  - 2024-01-18：使用了新的标注定位方案，增加了示例PaiMai项目
  - 2024-01-18：同时更新了models.py train.py server.py 以此支持示例项目 同时放弃了对旧项目的支持 故table_sample_make.cs文件已过时 下次更新
  - 2024-01-19：增加了table_sample_make_v2.cs,table_sample_make.cs以后仅作参考
- - 2024-01-23：修改了PaiMai/preprocess.py和server.py，解决location越界的问题
+ - 2024-01-23：修改了PaiMai/preprocess.py和server.py，解决原表格超出默认的列宽后，产生的location越界的问题
