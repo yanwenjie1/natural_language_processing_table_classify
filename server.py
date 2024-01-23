@@ -99,6 +99,9 @@ def filling_entities(entities, table_str, locations):
     soup = BeautifulSoup(table_str, 'html.parser')
     table = soup.find('table')
     rows = table.find_all('tr')
+
+    locations_fun_dict = {-1: args.Col_Count * args.Row_Count - 1}
+    global_location_index = 0
     # entities_all = copy.deepcopy(entities)
     for row_index, row in enumerate(rows):
         if row_index >= args.Row_Count:
@@ -113,8 +116,14 @@ def filling_entities(entities, table_str, locations):
             # assert len(re_match) == 1, '匹配单元格完整内容失败' + '    ' + str(content['id'])
             if len(re_match) == 1:
                 entities[row_index][col_index] = re_match[0][0]
-                locations[row_index][col_index] = int(re_match[0][1]) - 1
-    return entities
+                index_father = int(re_match[0][1])
+                locations[row_index][col_index] = index_father - 1
+                if index_father - 1 in locations_fun_dict:
+                    pass
+                else:
+                    locations_fun_dict[index_father - 1] = global_location_index
+                    global_location_index += 1
+    return entities, locations_fun_dict
 
 
 class Dict2Class:
@@ -157,26 +166,20 @@ def prediction():
         assert type(msgs) == str
         # 传入table 传出预测结果
         entities = [['PAD' for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
-        locations = [[args.Col_Count * args.Row_Count - 1 for _ in range(args.Col_Count)] for _ in
-                     range(args.Row_Count)]
+        locations = [[-1 for _ in range(args.Col_Count)] for _ in range(args.Row_Count)]
         # 填充entities
-        entities = filling_entities(entities, msgs, locations)
+
+        entities, locations_fun_dict = filling_entities(entities, msgs, locations)
 
         this_entities = []
         this_locations = []
         # 定义一维数组
         for row in entities:
             this_entities.extend(row)
-
-
-
         for location in locations:
             this_locations.extend(location)
 
-        this_locations_new = list(set(this_locations))
-        this_locations_new.sort()
-        this_locations_new = {j: i for i, j in enumerate(this_locations_new)}
-        this_locations = [this_locations_new[i] for i in this_locations]
+        this_locations = [locations_fun_dict[i] for i in this_locations]
 
         assert max(this_locations) <= args.Row_Count * args.Col_Count, '索引越界'
 
