@@ -167,8 +167,18 @@ def prediction():
         # 定义一维数组
         for row in entities:
             this_entities.extend(row)
+
+
+
         for location in locations:
             this_locations.extend(location)
+
+        this_locations_new = list(set(this_locations))
+        this_locations_new.sort()
+        this_locations_new = {j: i for i, j in enumerate(this_locations_new)}
+        this_locations = [this_locations_new[i] for i in this_locations]
+
+        assert max(this_locations) <= args.Row_Count * args.Col_Count, '索引越界'
 
         location =torch.as_tensor(this_locations, dtype=torch.int16)
         location = torch.as_tensor(location, device=device).unsqueeze(0)
